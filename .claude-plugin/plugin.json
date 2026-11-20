@@ -1,9 +1,11 @@
 {
   "name": "verifiable-agent-gym",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Data-backed task environments, grouped rollouts and independent outcome feedback for learning agents.",
-  "author": {"name": "Verifiable Agent Gym contributors"},
-  "homepage": "https://github.com/Cherish0925/Verifiable-Agent-Gym",
-  "repository": "https://github.com/Cherish0925/Verifiable-Agent-Gym",
+  "author": {
+    "name": "Verifiable Agent Gym contributors"
+  },
+  "homepage": "https://github.com/EnvFoundry/Verifiable-Agent-Gym",
+  "repository": "https://github.com/EnvFoundry/Verifiable-Agent-Gym",
   "license": "MIT"
 }

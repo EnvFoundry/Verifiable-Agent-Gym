@@ -7,6 +7,7 @@ import sys
 import tempfile
 import venv
 import zipfile
+import tomllib
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -16,8 +17,9 @@ def run(*args, **kwargs):
 
 
 def main():
-    wheel = next((ROOT / "dist").glob("verifiable_agent_gym-*.whl"))
-    plugin = next((ROOT / "dist").glob("*-plugin.zip"))
+    version = tomllib.loads((ROOT / "pyproject.toml").read_text())["project"]["version"]
+    wheel = next((ROOT / "dist").glob(f"verifiable_agent_gym-{version}-*.whl"))
+    plugin = ROOT / "dist" / f"verifiable-agent-gym-{version}-plugin.zip"
     with tempfile.TemporaryDirectory(prefix="gym installation ") as folder:
         workspace = Path(folder)
         venv.EnvBuilder(with_pip=True).create(workspace / "env")

@@ -211,14 +211,17 @@ class RolloutBatch:
                 output.write(dumps({"step": state.episode.steps, "data": policy_data}) + "\n")
         return observation
 
-    def close_slots(self, slots: Iterable[int], *, reason: str = "Closed by trainer") -> dict[int, Json]:
+    def close_slots(self, slots: Iterable[int], *, reason: str = "Closed by trainer",
+                    status: str = "cancelled") -> dict[int, Json]:
+        if status not in ("cancelled", "error", "truncated"):
+            raise ValueError("close status must be cancelled, error, or truncated")
         with self._lock:
             values = list(slots)
             if len(values) != len(set(values)):
                 raise ValueError("slot IDs must be unique")
             selected = {slot: None for slot in values}
             self._validate_slots(selected, occupied=True)
-            futures = {slot: self._pool.submit(self._slots[slot].episode.stop, "cancelled", reason) for slot in values}
+            futures = {slot: self._pool.submit(self._slots[slot].episode.stop, status, reason) for slot in values}
             responses = {}
             for slot, future in futures.items():
                 result = future.result()
@@ -270,6 +273,7 @@ def export_rollouts(root: str | Path, destination: str | Path, *, include_unscor
                 if not include_unscored and (result["status"] not in ("passed", "failed") or result["reward"] is None):
                     continue
                 rollout = json.loads((path / "rollout.json").read_text(encoding="utf-8"))
+                rollout["path"] = entry["path"]
                 with (path / "events.jsonl").open(encoding="utf-8") as events:
                     trajectory = [event for event in map(json.loads, events) if event["kind"] in ("observation", "action")]
                 policy_path = path / "policy-steps.jsonl"

@@ -1,117 +1,78 @@
 # Verifiable Agent Gym
 
-**面向学习型 Agent 的任务分布、可执行环境与实际运行反馈。**
+**可复用的任务分布、可执行环境，以及供智能体学习的交互反馈。**
 
-[English](README.md) · [训练接口](docs/training.md) · [运行协议](docs/protocol.md) · [任务包](docs/task-packages.md) · [Agent 接入](docs/install.md)
+[English](README.md) · [经验收集](docs/collection.md) · [训练接口](docs/training.md) · [任务包](docs/task-packages.md) · [安装](docs/install.md)
 
-Agent 接收任务，通过环境工具行动，提交结果后获得独立评价。本项目将这些经验组织为可供不同策略复用的数据：任务套件定义尝试什么，批量 slot 执行交互，导出保留尝试与结果，供外部学习器消费。
+智能体观察任务、使用工具改变环境并提交结果；Gym 执行交互，并独立于策略评价结果。模型评价、合成经验、后训练与科学实验共用同一套 Episode 实现。
 
-核心不绑定模型，服务于评测、合成经验采集、后训练和科学实验。[Data Engineering](https://github.com/Cherish0925/Data-Engineering)负责带版本的任务与轨迹产品，Gym 提供可执行环境，训练器负责策略推理与优化。[头部 AI 实验室的公开工作负载](https://github.com/Cherish0925/Data-Engineering/blob/main/docs/frontier-workloads.md)说明了这些接口的实际需求。
+## 收集经验，并在中断后继续
 
-## 运行评测与分组 rollout
-
-要求 Python 3.11 及以上，核心使用标准库，采用 MIT 许可证。
+需要 Python 3.11 或更新版本。Python 核心只依赖标准库。
 
 ```sh
-git clone https://github.com/Cherish0925/Verifiable-Agent-Gym.git
+git clone https://github.com/EnvFoundry/Verifiable-Agent-Gym.git
 cd Verifiable-Agent-Gym
 python -m pip install -e .
-agent-gym list
-agent-gym run --tasks all --count 10 --difficulty 3 --jobs 4 --output runs/baseline --require-pass
-agent-gym export runs/baseline --output runs/baseline.jsonl
-python examples/batched_rollouts.py --output runs/grouped
+python examples/collect_policy.py --output runs/collection-example
 ```
 
-评测命令与批量示例使用脚本参考策略。批量示例通过四个环境 slot，为四个 RC 辨识任务分别采集四次尝试，再写出 `runs/grouped/trajectories.jsonl`。把示例中的动作生成步骤替换为模型批量推理，即可驱动相同环境；评测 runner 的 `empty` 策略提供未成功的对照。
+示例为 RC 参数识别建立有限任务集，每项任务尝试四次；通过持续运行的策略进程驱动并发环境，完成部分任务后停止，再恢复并导出结果。示例使用编写好的参考求解器，将策略替换为模型推理即可收集模型交互。
 
-`python -m agent_gym` 等价于 `agent-gym`；按系统使用 `python3` 或 `py -3.11`。
+```sh
+agent-gym suite --tasks rc-identification --count 4 --attempts 4 --name rc-policy-study --output suite.json
+agent-gym collect suite.json --reference --policy-name scripted-reference --policy-revision 1 --slots 4 --limit 5 --output runs/study
+agent-gym collect suite.json --reference --policy-name scripted-reference --policy-revision 1 --slots 4 --resume --output runs/study
+agent-gym collection runs/study
+agent-gym rollouts runs/study --status passed --limit 10
+agent-gym export-rollouts runs/study --output runs/study.jsonl
+```
 
-## 任务套件与学习器接口
+恢复时沿用已经完成的任务尝试，中断的交互从新环境重新开始。恢复的是实验进度；模拟器内部的活动状态由具体任务实现。[经验收集说明](docs/collection.md)定义策略协议、调度、运行会话和导出行为。
 
-| 对象 | 责任 |
+## 由自己的学习器驱动
+
+| 接口 | 职责 |
 | --- | --- |
-| `TaskSuite` | 有限任务集合、每任务尝试次数及由内容计算的套件版本。 |
-| `SuiteSampler` | 确定性任务顺序、epoch 与采样种子、按完整任务组分配 rank、可恢复的派发游标。 |
-| `PolicyVersion` | 为每次尝试记录策略名称、版本和生成参数。 |
-| `RolloutBatch` | 并发环境 slot，支持选择性 `reset`、`step`、`close_slots`，已完成 slot 可独立补充任务。 |
-| Rollout 导出 | 任务、分组、尝试和策略身份，有序交互，调用者提供的策略统计量，终止状态与验证结果。 |
-
-```python
-from agent_gym import TaskSpec
-from agent_gym.suite import TaskSuite
-
-suite = TaskSuite(
-    [TaskSpec("rc-identification", seed=i) for i in range(100)],
-    attempts_per_task=4,
-    name="rc-policy-comparison",
-)
-sampler = suite.sampler(seed=17, rank=0, world_size=4)
-tickets = sampler.take(8)
-checkpoint = sampler.state_dict()
-```
-
-同一采样任务组的全部尝试分配到同一个 rank。每个 slot 返回观察以及 `terminated`、`truncated`、`scored`、`reward`。策略可随动作传入 token 统计量，由训练器据此构造损失。sampler 检查点恢复后续派发位置；完整循环以及采样状态与运行环境状态的区别见[训练接入](docs/training.md)。
+| `TaskSuite` / `SuiteSampler` | 有限任务定义、成组尝试、确定性顺序、rank 分配和发行游标。 |
+| `RolloutBatch` | 并发环境槽位，分别 reset、step、close，完成后可独立补充任务。 |
+| Collection | 驱动批量策略、持续补充空闲槽位、保存进度与恢复实验。 |
+| JSONL 策略进程 | 跨语言交换成批的观测和行动。 |
+| 轨迹导出 | 保留任务、尝试、策略、交互、策略统计和终止反馈。 |
 
 ```sh
-agent-gym export-rollouts runs/grouped --output runs/grouped-export.jsonl
+agent-gym collect suite.json --command-json '["/absolute/path/to/python", "/absolute/path/to/policy.py"]' --policy-name my-policy --policy-revision checkpoint-1000 --slots 8 --output runs/model
 ```
 
-## 由数据定义可执行任务
+学习器负责推理、模型概率和优化；Gym 负责环境变化与结果。策略提供的统计保留在对应步骤中，相关尝试保留任务组关系。[训练接口](docs/training.md)提供 Python 控制方式，[交互协议](docs/protocol.md)解释单次 Episode 与终止状态。
 
-Task pack 将数据集变成可运行任务。SQL profile 接收数据库快照、任务描述和参考查询或结果；Agent 查看 schema、执行查询，再提交 SQL 或结果行。验证器按明确的行顺序与数值容差比较结果，接受得到相同结果的其他查询写法。
+[TypeScript SDK](sdk/typescript/README.md)提供类型化 CLI 方法、持续运行的 JSONL 环境客户端和批量策略辅助函数，可从 Node Harness 直接驱动同一套实现。
+
+## 任务环境
+
+| 任务族 | 智能体完成的工作 | 结果评价 |
+| --- | --- | --- |
+| `evidence-aggregation` | 选择有效文档版本、换算单位并组合测量。 | 来源选择、逆方差估计和标准误差。 |
+| `rc-identification` | 选择测量频率，观察带噪仪器，识别参数。 | 参数误差与未参与拟合的频率响应。 |
+| `thin-film-design` | 选择材料与厚度，设计减反射膜。 | 在目标波段独立计算光学响应。 |
+| 数据集 SQL 任务 | 查看数据库结构，查询并提交 SQL 或结果行。 | 按规定的排序与数值容差比较结果。 |
+
+生成任务提供可重复实例、三个难度和分离的划分命名空间；数据集任务使用明确记录。任务提供者定义观测、行动和可接受结果。参考策略展示一种解法，环境也接受其他符合目标的解法。
 
 ```sh
-agent-gym pack-info examples/sql-workload/tasks.jsonl --family warehouse-sql
 agent-gym --task-pack warehouse-sql=examples/sql-workload/tasks.jsonl list
 python examples/sql-workload/agent.py --output runs/sql-example
 ```
 
-示例包含四个人工编写的关系数据库问题，明确指定 train/validation/test。`load_taskpack` 可读取 JSONL 或 Data Engineering 发布目录，保留来源身份，枚举各分区中的有限任务。安装 Data Engineering 后，同一批记录可构建成数据版本再读取：
+[任务包说明](docs/task-packages.md)介绍扩展接口和独立标定任务示例。外部数据产品、模拟器与学习器通过文件或适配器接入，默认研究流程可以独立运行。
+
+## Agent 接入
 
 ```sh
-ai-data build examples/sql-workload/data.recipe.json --output runs/sql-tasks
-agent-gym pack-info runs/sql-tasks --family warehouse-sql
-```
-
-使用 `pack.specs("train")` 构造 `TaskSuite`，将 `pack.make` 传给 batch 作为任务工厂。[任务包说明](docs/task-packages.md)介绍自定义 provider；[校准任务包](examples/calibration-package/)演示 `agent_gym.tasks` 扩展入口。
-
-Data Engineering 的[完整经验流程示例](https://github.com/Cherish0925/Data-Engineering/blob/main/examples/experience_cycle.py)贯通任务版本、八次分组 SQL 尝试、轨迹版本、训练分片和可恢复的 rank 读取。
-
-## 可生成的科学环境
-
-| 任务族 | Agent 的工作 | 评价方式 |
-| --- | --- | --- |
-| `evidence-aggregation` | 选择有效文献版本、统一单位、综合测量。 | 核对证据集合、逆方差估计与标准误。 |
-| `rc-identification` | 选择测量频率，辨识带噪声仪器的参数。 | 独立计算参数误差与留出频率上的响应。 |
-| `thin-film-design` | 选择材料与厚度，设计减反膜。 | 用特征矩阵检查波段平均指标。 |
-
-这些任务族可重复生成实例，包含三档难度和独立的切分种子空间；SQL pack 则枚举数据集记录。研究迁移能力时，可进一步按任务机制、领域或组合方式留出任务。
-
-## 接入 Agent
-
-```sh
-python -m pip install -e ".[mcp]"
+python -m pip install -e '.[mcp]'
 agent-gym connect --output agent-gym.mcp.json
 ```
 
-兼容的 MCP host 使用 `gym_tasks`、`gym_open`、`gym_action`、`gym_close`。仓库包含 Codex、Claude Code 插件清单及共用 [Skill](skills/verifiable-agent-gym/SKILL.md)，详见[安装说明](docs/install.md)。
+MCP 支持任务发现、交互环境、任务集、经验收集和有界轨迹分页。方法资源与提示词引导任务构建和反馈解释，仓库同时提供插件配置与共用 Skill。[安装说明](docs/install.md)覆盖 MCP Host、Codex、Claude Code 与 TypeScript 客户端。
 
-外部进程也可以从 stdin 接收 JSON 观察，向 stdout 返回 JSON 动作：
-
-```sh
-agent-gym run --tasks rc-identification --count 20 --agent command --command-json '["/absolute/path/to/python", "/absolute/path/to/my_agent.py"]' --jobs 4 --output runs/model
-```
-
-[运行协议](docs/protocol.md)给出交互格式。评测保留每次尝试；`--resume` 跳过已完成项，并在新环境重开中断任务；`--retry-errors` 重试记录中的基础设施故障。正式验证的答案产生奖励，截断、中断和环境故障保留各自状态与未评分奖励。
-
-## 当前执行范围
-
-当前在本机执行：batch 以线程推进不同环境，命令 runner 管理外部 Agent 进程，耗时求解器由任务 provider 管理作业。运行中环境的状态恢复、远程 worker 和训练框架专用适配仍待接入。分词、模型概率与优化属于外部学习器。内置数据与策略用于运行这些接口，实际学习收益和大规模工作负载结果需要消费者实验。
-
-```sh
-python -m unittest discover -s tests -v
-python -m pip wheel . --no-deps --wheel-dir dist
-python scripts/package_plugin.py
-```
-
-参与开发前阅读 [AGENTS.md](AGENTS.md)。新增工作应交付可运行的环境、可互操作的学习器适配，或能够改变任务构造和采样方法的研究结果。
+目前使用本地线程执行环境槽位，子进程执行命令策略；远程模拟器和模型服务可以接在任务或策略接口后。代码位于 `src/agent_gym/` 与 `sdk/typescript/`，示例均可执行。贡献前阅读 [AGENTS.md](AGENTS.md)。MIT 许可证。

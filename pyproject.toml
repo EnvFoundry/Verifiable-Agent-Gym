@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "verifiable-agent-gym"
-version = "0.2.0"
+version = "0.3.0"
 description = "Executable tasks and independent verification for tool-using agents"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -24,4 +24,4 @@ agent-gym = "agent_gym.cli:main"
 where = ["src"]
 
 [project.urls]
-Repository = "https://github.com/Cherish0925/Verifiable-Agent-Gym"
+Repository = "https://github.com/EnvFoundry/Verifiable-Agent-Gym"

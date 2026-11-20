@@ -11,6 +11,16 @@ from .episode import Episode
 from .registry import make, task_names
 
 
+def capabilities() -> dict:
+    from .guidance import GUIDES
+    return {"schema_version": 1, "families": task_names(),
+            "operations": {"episodes": ["tasks", "open", "action", "close"],
+                           "collection": ["suite", "collect", "collection", "rollouts", "export-rollouts"]},
+            "transports": ["python", "cli", "jsonl", "mcp"],
+            "guides": list(GUIDES), "page_limit": 100,
+            "batch_policy": {"request": "observations + completed", "response": "actions", "protocol": "jsonl-v1"}}
+
+
 class GymService:
     def __init__(self, output: Path, *, max_active: int = 32, episode_seconds: float = 600):
         if max_active < 1 or not math.isfinite(episode_seconds) or episode_seconds <= 0:
@@ -19,6 +29,9 @@ class GymService:
         self.max_active, self.seconds = max_active, episode_seconds
         self.episodes: dict[str, Episode] = {}
         self.lock = threading.RLock()
+
+    def capabilities(self):
+        return capabilities()
 
     def tasks(self):
         return {"schema_version": 1, "families": task_names(), "splits": ["train", "validation", "test"], "difficulties": [1, 2, 3]}
@@ -74,10 +87,10 @@ def serve_jsonl(service: GymService, input_stream, output_stream):
                 request = json.loads(line)
                 if not isinstance(request, dict):
                     raise ValueError("Request must be an object")
-                methods = {"tasks": service.tasks, "open": service.open, "action": service.action, "close": service.close}
+                methods = {"capabilities": service.capabilities, "tasks": service.tasks, "open": service.open, "action": service.action, "close": service.close}
                 method = request.get("method")
                 if method not in methods:
-                    raise ValueError("method must be tasks, open, action, or close")
+                    raise ValueError("method must be capabilities, tasks, open, action, or close")
                 result = methods[method](**request.get("params", {}))
                 response = {"id": request.get("id"), "result": result}
             except Exception as exc:

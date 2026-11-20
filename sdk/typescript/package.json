@@ -1,0 +1,35 @@
+{
+  "name": "@envfoundry/verifiable-agent-gym",
+  "version": "0.3.0",
+  "description": "Typed Node harness client for Verifiable-Agent-Gym",
+  "type": "module",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "npm run build && node --test",
+    "prepack": "npm run build"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "typescript": "^5.9.3"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/EnvFoundry/Verifiable-Agent-Gym.git",
+    "directory": "sdk/typescript"
+  }
+}

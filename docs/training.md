@@ -2,6 +2,8 @@
 
 An external trainer controls model inference and optimization. The Gym supplies task samples, independent environment slots, observations and outcome feedback. `TaskSuite` and `RolloutBatch` make these operations explicit.
 
+For a complete persistent batch-policy loop, use [collection](collection.md). It schedules a finite suite, refills slots, records progress and resumes completed tickets. The direct interfaces below remain useful when the learner already owns its scheduler.
+
 ## Define the task population
 
 ```python
@@ -56,6 +58,6 @@ agent-gym export-rollouts runs/learner --output runs/learner.jsonl
 
 Exports use the existing episode export-v1 shape with additional `rollout` and `policy_steps` fields. Every actual episode retains its ordered trace and outcome. Attempts failing before an episode exists remain in the run index/summary. `--scored-only` selects scored episodes.
 
-The [Data Engineering](https://github.com/Cherish0925/Data-Engineering) `gym-jsonl` connector preserves the complete exported payload. Its [experience cycle](https://github.com/Cherish0925/Data-Engineering/blob/main/examples/experience_cycle.py) connects task release, grouped execution, trajectory import, shard composition and reader restart.
+The [Data Engineering](https://github.com/EnvFoundry/Data-Engineering) `gym-jsonl` connector preserves the complete exported payload. Its [experience cycle](https://github.com/EnvFoundry/Data-Engineering/blob/main/examples/experience_cycle.py) connects task release, grouped execution, trajectory import, shard composition and reader restart.
 
 Run `python examples/batched_rollouts.py --output runs/batched` for the standalone reference-policy example. Use that path to integrate policy inference, batching and checkpointing before adding a trainer-specific exporter.

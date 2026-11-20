@@ -46,7 +46,7 @@ The repository/plugin ZIP includes Claude Code and Codex manifests, MCP launch c
 Add the repository as a marketplace and install its plugin:
 
 ```text
-/plugin marketplace add Cherish0925/Verifiable-Agent-Gym
+/plugin marketplace add EnvFoundry/Verifiable-Agent-Gym
 /plugin install verifiable-agent-gym@verifiable-agent-gym
 ```
 
@@ -57,7 +57,7 @@ For local development, start Claude Code with `--plugin-dir /absolute/path/to/Ve
 Add this repository's catalog and install the plugin:
 
 ```sh
-codex plugin marketplace add Cherish0925/Verifiable-Agent-Gym
+codex plugin marketplace add EnvFoundry/Verifiable-Agent-Gym
 codex plugin add verifiable-agent-gym@verifiable-agent-gym
 ```
 
@@ -70,6 +70,12 @@ If your Codex version does not expose plugin installation, use the generated MCP
 Use the package's generated command/arguments with any compatible MCP stdio client. A host can expose `gym_action` directly or translate each episode's `tools` list into native function calls. Its action must still pass through the Gym so observations and rewards are recorded consistently. No provider-specific API is embedded in the Gym.
 
 The root portable manifest targets [Agent Plugins 1.0.0](https://agent-plugins.org/). These manifests are shipping formats, not automatic listings in an external vendor's curated store. Marketplace acceptance and host-specific UI installation remain separate from protocol compatibility.
+
+## Node harnesses and installed guidance
+
+The [TypeScript SDK](../sdk/typescript/README.md) supplies typed command operations, a persistent JSONL environment client and a helper for batched policies. Build it with `npm ci` and `npm run build` in `sdk/typescript`; it invokes the independently installed Python package. No model SDK or HTTP service is required.
+
+Use `agent-gym capabilities` or `gym_capabilities` for the installed surface. Method resources under `gym://guides/` cover task design, interaction, collection and policy comparison. Collection tools return progress; rollout pages expose selected records without sending full traces by default. [Collection](collection.md) defines the exact operation and transport fields.
 
 ## Distribution
 

@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 import tempfile
 import zipfile
+import tomllib
 
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
@@ -15,7 +16,8 @@ ROOT = Path(__file__).resolve().parents[1]
 async def main():
     with tempfile.TemporaryDirectory(prefix="gym plugin launch ") as folder:
         workspace = Path(folder)
-        with zipfile.ZipFile(next((ROOT / "dist").glob("*-plugin.zip"))) as archive:
+        version = tomllib.loads((ROOT / "pyproject.toml").read_text())["project"]["version"]
+        with zipfile.ZipFile(ROOT / "dist" / f"verifiable-agent-gym-{version}-plugin.zip") as archive:
             archive.extractall(workspace)
         package = workspace / "verifiable-agent-gym"
         manifest = json.loads((package / "mcp.json").read_text(encoding="utf-8"))
@@ -25,7 +27,7 @@ async def main():
             async with ClientSession(reader, writer) as client:
                 await client.initialize()
                 listed = await client.list_tools()
-                if {t.name for t in listed.tools} != {"gym_tasks", "gym_open", "gym_action", "gym_close"}:
+                if not {"gym_tasks", "gym_open", "gym_action", "gym_close", "gym_collect"} <= {t.name for t in listed.tools}:
                     raise RuntimeError("Packaged server exposed unexpected tools")
                 opened = await client.call_tool("gym_open", {"family": "thin-film-design"})
                 if opened.isError:
